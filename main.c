@@ -1,13 +1,13 @@
-#include <time.h>
+#include <sys/time.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
-#define N 12
-#define M 10
-#define P 5
-#define MAX_THREADS 2
+#define N 1200
+#define M 1000
+#define P 500
+#define MAX_THREADS 7
 
-int threadNumber;
+int threadNumber, threads;
 
 int a[N][M];
 int b[M][P];
@@ -46,53 +46,51 @@ void givenMatMult () {
 void *multiMultip(void *param) {
     int i, j, k;
     int thNum = threadNumber++;
-    for (i = thNum * N/ MAX_THREADS; i < (thNum +1) * N / MAX_THREADS; i++) {
+    for (i = thNum * N/ threads; i < (thNum +1) * N / threads; i++) {
         for (j = 0; j < P; j++) {
             for (k = 0; k < M; k++) {
                 c[i][j] += a[i][k] * b[k][j];
             }
         }
     }
+    pthread_exit(NULL);
 }
 
 int main(void) {
-    int i, j;
+    int i;
 
+    struct timeval startTime, endTime;
     pthread_attr_t attr;
     pthread_t tid[MAX_THREADS];
     pthread_attr_init(&attr);
 
     initializeMatrices();
 
-    // givenMatMult();
+    gettimeofday(&startTime, NULL);
+    givenMatMult();
+    gettimeofday(&endTime, NULL);
+    printf("Time for one: %ld microseconds\n", endTime.tv_usec - startTime.tv_usec);
+    printf("Threads\tSeconds\tError\n");
+    for (threads = 0; threads < MAX_THREADS; threads++) {
+        printf("%d\t", threads + 1);
+        gettimeofday(&startTime, NULL);
+        threadNumber = 0;
+        char *errorString = "No error\n";
+        for (i = 0; i < threads; i++) {
+            if (pthread_create(&(tid[i]), &attr, multiMultip, NULL)) {
+                errorString = "Error\n";
+            }
+        }
 
-    threadNumber = 0;
-    for (i = 0; i < MAX_THREADS; i++) {
-        if (pthread_create(&(tid[i]), &attr, multiMultip, NULL)) {
-            printf("Failed to create thread %d.\n", i);
-        } else {
-            printf("Thread %d created successfully.\n", i);
+        for (i = 0; i < threads; i++) {
+            if (pthread_join(tid[i], NULL)) {
+                errorString = "Error\n";
+            }
         }
+        gettimeofday(&endTime, NULL);
+        printf("%f\t%s", endTime.tv_sec - startTime.tv_sec + (endTime.tv_usec - startTime.tv_usec)/1000000.0, errorString);
     }
+    
 
-    for (i = 0; i < MAX_THREADS; i++) {
-        if (pthread_cancel(tid[i])) {
-            printf("Failed to cancel thread %d.\n", i);
-        } else {
-            printf("Thread %d cancelled successfully.\n", i);
-        }
-        if (pthread_join(tid[i], NULL)) {
-            printf("Failed to join thread %d.\n", i);
-        } else {
-            printf("Thread %d joined successfully.\n", i);
-        }
-    }
-
-    for (i = 0; i < N; i++) {
-        for (j = 0; j < P; j++) {
-            printf("%3d ", c[i][j]);
-        }
-        printf("\n");
-    }
     return(0);
 }
